@@ -120,6 +120,30 @@ circ_inds(start, Nsteps, l) = mod1.(start:start + Nsteps - 1, l)
 @test circ_inds(1, 120, 100) == [1:100 ..., 1:20 ...]
 @test circ_inds(90, 20, 100) == [90:100 ..., 1:9 ...]
 
+## Get last N indices test
+# A not full buffer
+b = ExperienceBuffer(ContinuousSpace(2), ContinuousSpace(1), 100)
+d = Dict(:s => 2*ones(2,50), :a => ones(Bool, 1,50), :sp => ones(2,50), :r => ones(1,50), :done => zeros(1,50), :weight=>zeros(1,50))
+push!(b, d)
+
+
+@test get_last_N_indices(b, 10) == collect(41:50)
+@test get_last_N_indices(b, 1) == [50]
+@test get_last_N_indices(b, 50) == collect(1:50)
+@test get_last_N_indices(b, 51) == collect(1:50)
+@test get_last_N_indices(b, 1000) == collect(1:50)
+
+# full buffer
+push!(b, d)
+push!(b, d)
+@test get_last_N_indices(b, 10) == collect(41:50)
+@test get_last_N_indices(b, 1) == [50]
+@test get_last_N_indices(b, 50) == collect(1:50)
+@test get_last_N_indices(b, 51) == [100, collect(1:50)...]
+@test get_last_N_indices(b, 100) == [collect(51:100)..., collect(1:50)...]
+@test get_last_N_indices(b, 1000) == [collect(51:100)..., collect(1:50)...]
+
+
 ## Priority Param Construction
 p = PriorityParams(100, α=0.7)
 @test length(p.minsort_priorities) == 100

@@ -29,11 +29,11 @@ function mdp_data(S::T1, A::T2, capacity::Int, extras::Array{Symbol} = Symbol[];
         :done => ArrayType(fill(zero(D), 1, capacity))
         )
     for k in extras
-        if k in [:return, :logprob, :advantage, :cost]
+        if k in [:return, :logprob, :xlogprob, :advantage, :cost]
             data[k] = ArrayType(fill(zero(R), 1, capacity))
         elseif k in [:weight]
             data[k] = ArrayType(fill(one(R), 1, capacity))
-        elseif k in [:episode_end]
+        elseif k in [:episode_end, :fail]
             data[k] = ArrayType(fill(false, 1, capacity))
         elseif k in [:t, :i]
             data[k] = ArrayType(fill(0, 1, capacity))
@@ -197,6 +197,14 @@ function episodes(b::ExperienceBuffer)
         error("Need :episode_end flag or :t column to determine episodes")
     end
     zip(ep_starts, ep_ends)
+end
+
+function get_last_N_indices(b::ExperienceBuffer, N)
+    # Make sure we don't exceed the number of elements actually stored in the buffer
+    N = min(length(b), N)
+    C = capacity(b)
+    start_index = mod1(b.next_ind - N, C)
+    mod1.(start_index:start_index + N - 1, C)
 end
 
 # Note: data can be a dictionary or an experience buffer

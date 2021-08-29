@@ -23,13 +23,18 @@ module Crux
     using Statistics
     using Base.Iterators: partition
     
+    extra_functions = Dict()
+    function set_function(key, val)
+        extra_functions[key] = val
+    end
+    
     export ScalarParams, AbstractSpace, DiscreteSpace, ContinuousSpace, type, dim, 
            state_space, device, cpucall, gpucall, mdcall, bslice, whiten, to2D, tovec
     include("utils.jl")
     
     export MinHeap, inverse_query, mdp_data, PriorityParams, ExperienceBuffer, buffer_like, minibatch,
            clear!, trim!, isprioritized, dim, episodes, update_priorities!, uniform_sample!, 
-           prioritized_sample!, capacity, normalize!, extra_columns
+           prioritized_sample!, capacity, normalize!, extra_columns, get_last_N_indices
     include("experience_buffer.jl")
     
     export TrainingParams, batch_train!
@@ -39,12 +44,13 @@ module Crux
            DoubleNetwork, ActorCritic, GaussianPolicy, SquashedGaussianPolicy, 
            DistributionPolicy, AdversarialPolicy, protagonist, antagonist,
            GaussianNoiseExplorationPolicy, FirstExplorePolicy, ϵGreedyPolicy, LinearDecaySchedule,
+           MixedPolicy,
            entropy, logpdf, action_space, exploration, layers, actor, critic
     include("policies.jl")
     
     export Sampler, initial_observation, terminate_episode!, step!, steps!, 
            episodes!, fillto!, metric_by_key, metrics_by_key, undiscounted_return, discounted_return, failure, 
-           fill_gae!, fill_returns!, trime!
+           fill_gae!, fill_returns!, trim!
     include("sampler.jl")
     
     export elapsed, LoggerParams, aggregate_info, log_performance, 
@@ -108,9 +114,9 @@ module Crux
     include("model_free/batch/cql.jl")
     include("model_free/batch/sac.jl")
     
-    export AdversarialOffPolicySolver, RARL, ISARL
+    export AdversarialOffPolicySolver, RARL, ISARL_Discrete, ISARL_Continuous
     include("model_free/adversarial/adv_off_policy.jl")
     include("model_free/adversarial/rarl.jl")
-    include("model_free/adversarial/is.jl")
+    include("model_free/adversarial/isarl.jl")
 end
 

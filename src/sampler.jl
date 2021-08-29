@@ -51,13 +51,13 @@ function step!(data, j::Int, sampler::Sampler; explore=false, i=0)
     
     if sampler.π isa AdversarialPolicy
         π_adv = antagonist(sampler.π)
-        #TODO: What to do about the explore variable? For now, always explore or pass in a non Adversarial Policy
-        #TODO: What to do about the π_explore function? For now, just use the antagonist policy
-        x, xlogprob = exploration(π_adv, sampler.svec, π_on=π_adv, i=i)
+        π_adv_explore = sampler.π.A_explore
+        x, xlogprob = explore ? exploration(π_adv_explore, sampler.svec, π_on=π_adv, i=i) : exploration(π_adv, sampler.svec)
         length(x) == 1 && (x = x[1]) # actions always come out as an array
         sp, r = gen(sampler.mdp, sampler.s, a, x; kwargs...)
         spvec = convert_s(AbstractArray, sp, sampler.mdp)
-        data[:x][:, j:j] .= tovec(x, sampler.A) # NOTE: Assumes that the disturbance space is the same as the action space
+        data[:x][:, j:j] .= tovec(x, action_space(π_adv))
+        haskey(data, :xlogprob) && (data[:xlogprob][:, j] .= xlogprob)
     elseif sampler.mdp isa POMDP
         sp, o, r = gen(sampler.mdp, sampler.s, a; kwargs...)
         spvec = convert_o(AbstractArray, o, sampler.mdp)
@@ -80,6 +80,7 @@ function step!(data, j::Int, sampler::Sampler; explore=false, i=0)
     haskey(data, :t) && (data[:t][1, j] = sampler.episode_length + 1)
     haskey(data, :i) && (data[:i][1, j] = i+1)
     haskey(data, :cost) && (data[:cost][1,j] = info["cost"])
+    haskey(data, :fail) && (data[:fail][1,j] = extra_functions["isfailure"](sampler.mdp, sp))
     
     # Cut the episode short if needed
     sampler.episode_length += 1
@@ -91,10 +92,14 @@ function step!(data, j::Int, sampler::Sampler; explore=false, i=0)
     end
 end
 
-function steps!(sampler::Sampler; Nsteps = 1, explore=false, i=0, reset=false, return_episodes=false)
+function steps!(sampler::Sampler; Nsteps = 1, explore=false, i=0, reset=false, return_episodes=false, return_at_episode_end=false)
     data = mdp_data(sampler.S, sampler.A, Nsteps, return_episodes ? [sampler.required_columns..., :episode_end] : sampler.required_columns)
     for j=1:Nsteps
         step!(data, j, sampler, explore=explore, i=i + (j-1))
+        if return_at_episode_end && sampler.episode_length == 0 
+            trim!(data, j)
+            break
+        end
     end
     reset && terminate_episode!(sampler, data, Nsteps)
     return_episodes ? (data, episodes(data)) : data

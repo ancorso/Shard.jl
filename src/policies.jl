@@ -59,7 +59,7 @@ mutable struct DiscreteNetwork <: NetworkPolicy
     outputs
     logit_conversion
     device
-    DiscreteNetwork(network, outputs,  logit_conversion=softmax, dev=nothing) = new(network, cpu(outputs), logit_conversion, device(network))
+    DiscreteNetwork(network, outputs, logit_conversion=softmax, dev=nothing) = new(network, cpu(outputs), logit_conversion, device(network))
 end
 
 Flux.@functor DiscreteNetwork 
@@ -91,7 +91,12 @@ function exploration(π::DiscreteNetwork, s; kwargs...)
     a, categorical_logpdf(ps, Flux.onehotbatch(π, a))
 end
 
-Distributions.logpdf(π::DiscreteNetwork, s, a_oh) = categorical_logpdf(logits(π, s), a_oh)
+function Distributions.logpdf(π::DiscreteNetwork, s, a)
+    Zygote.ignore() do 
+        size(a,1) == 1 && (a = Flux.onehotbatch(π, a)) 
+    end
+    return categorical_logpdf(logits(π, s), a)
+end
 
 function Distributions.entropy(π::DiscreteNetwork, s)
     ps = logits(π, s)
@@ -135,6 +140,8 @@ action_space(π::DoubleNetwork) = action_space(π.N1)
 mutable struct AdversarialPolicy{T1, T2} <: NetworkPolicy
     P::T1 # Protagonist
     A::T2 # Antagonist
+    A_explore # exploration policy for antagonist
+    AdversarialPolicy(P::T1, A::T2, A_explore=A) where {T1, T2} = new{T1, T2}(P, A, A_explore)
 end
 Flux.@functor AdversarialPolicy
 Flux.trainable(π::AdversarialPolicy) = (Flux.trainable(π.P)..., Flux.trainable(π.A)...)
@@ -315,6 +322,25 @@ end
 function exploration(π::ϵGreedyPolicy, s; π_on, i,)
     rand() < π.ϵ(i) ? (rand(π.actions, 1), NaN) : (action(π_on, s), NaN)
 end
+
+## Mixing policy
+mutable struct MixedPolicy <: Policy
+    ϵ::Function
+    policy
+end
+
+MixedPolicy(ϵ::Real, policy) = MixedPolicy((i) -> ϵ, policy)
+
+function exploration(π::MixedPolicy, s; π_on, i,)
+    ϵ = π.ϵ(i)
+    x = rand() < ϵ ? rand(π.policy) : exploration(π_on, s; i=i, π_on=π_on)[1]
+    size(x) == () && (x = [x]) # actions always come out as an array
+    logp1 = Base.log(ϵ) .+ logpdf.(π.policy, x)
+    logp2 = Base.log(1-ϵ) .+ logpdf(π_on, s, x)
+    
+    x, logsumexp(vcat(logp1, logp2), dims=1)
+end
+
 
 
 ## Exploration policy with Gaussian noise

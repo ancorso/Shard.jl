@@ -5,7 +5,7 @@ elapsed(i::UnitRange, N::Int) = any([i...] .% N .== 0)
     dir::String = "log/"
     period::Int64 = 500
     logger = TBLogger(dir, tb_increment)
-    fns = [log_undiscounted_return(10)]
+    fns = Any[log_undiscounted_return(10)]
     verbose::Bool = true
     sampler::Union{Sampler, Nothing, Vector} = nothing
 end
@@ -32,7 +32,11 @@ end
                         #t, solver.max_steps, nt[1], avg100_reward, loss_val, grad_val, scores_eval)
                         
 function aggregate_info(infos)
-    res = Dict(k => mean([info[k] for info in filter((x)->haskey(x, k), infos)]) for k in keys(infos[1]))
+    res = Dict()
+    for k in unique(vcat([collect(keys(info)) for info in infos]...))
+        res[k] = mean([info[k] for info in filter((x)->haskey(x, k), infos)])
+    end
+    res
 end
 
 # Built-in functions for logging common training things
